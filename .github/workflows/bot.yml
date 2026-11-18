@@ -1,0 +1,44 @@
+name: Pip GTA6 bot
+
+on:
+  schedule:
+    - cron: "0 */3 * * *"   # cada 3 horas
+  workflow_dispatch: {}      # botón para lanzarlo a mano
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pipbot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependencias
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -q -r requirements.txt
+      - name: Buscar, montar y programar clips
+        env:
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRAFT_MODE: ${{ vars.DRAFT_MODE || 'false' }}
+          CLIPS_PER_RUN: ${{ vars.CLIPS_PER_RUN || '2' }}
+          TARGET_SERVICES: ${{ vars.TARGET_SERVICES || 'youtube,tiktok,instagram' }}
+        run: python bot.py
+      - name: Guardar estado
+        run: |
+          git config user.name pipbot
+          git config user.email pipbot@users.noreply.github.com
+          git add state.json || true
+          git diff --cached --quiet || (git commit -q -m "estado" && git push -q)
